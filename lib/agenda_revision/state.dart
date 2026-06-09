@@ -2,7 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
-import 'package:agenda_revision/models.dart';
+import '../models/Models.dart';
+import '../services/notificationService.dart';
 
 const _uuid = Uuid();
 
@@ -19,28 +20,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> _init() async {
     await _charger();
-    if (matieres.isEmpty) _ajouterDemoData();
     notifyListeners();
-  }
-
-  void _ajouterDemoData() {
-    matieres = [
-      Matiere(id: _uuid.v4(), nom: 'Mathématiques', couleur: const Color(0xFF534AB7), rappelMinutes: 30),
-      Matiere(id: _uuid.v4(), nom: 'Physique', couleur: const Color(0xFF1D9E75), rappelMinutes: 60),
-      Matiere(id: _uuid.v4(), nom: 'Anglais', couleur: const Color(0xFFEF9F27), rappelMinutes: 15),
-      Matiere(id: _uuid.v4(), nom: 'Histoire', couleur: const Color(0xFFD4537E), notificationActive: false, rappelMinutes: 30),
-    ];
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    seances = [
-      Seance(id: _uuid.v4(), matiereId: matieres[0].id, dateDebut: today.add(const Duration(hours: 14)), dateFin: today.add(const Duration(hours: 16)), notes: 'Chapitre 4 – Matrices'),
-      Seance(id: _uuid.v4(), matiereId: matieres[1].id, dateDebut: today.add(const Duration(hours: 17)), dateFin: today.add(const Duration(hours: 18, minutes: 30)), notes: 'TD – Cinétique'),
-      Seance(id: _uuid.v4(), matiereId: matieres[2].id, dateDebut: today.add(const Duration(hours: 20)), dateFin: today.add(const Duration(hours: 21)), notes: 'Expression écrite'),
-      Seance(id: _uuid.v4(), matiereId: matieres[0].id, dateDebut: today.subtract(const Duration(days: 2, hours: -9)), dateFin: today.subtract(const Duration(days: 2, hours: -11)), notes: 'Révision chapitre 3', terminee: true),
-      Seance(id: _uuid.v4(), matiereId: matieres[1].id, dateDebut: today.subtract(const Duration(days: 1, hours: -10)), dateFin: today.subtract(const Duration(days: 1, hours: -11, minutes: -30)), terminee: true),
-      Seance(id: _uuid.v4(), matiereId: matieres[3].id, dateDebut: today.subtract(const Duration(days: 3, hours: -14)), dateFin: today.subtract(const Duration(days: 3, hours: -16)), terminee: true),
-    ];
-    _sauvegarder();
   }
 
   // --- Matieres ---
@@ -60,6 +40,11 @@ class AppState extends ChangeNotifier {
   void toggleNotification(String matiereId) {
     final m = matieres.firstWhere((m) => m.id == matiereId);
     m.notificationActive = !m.notificationActive;
+    if (!m.notificationActive) {
+      for (final s in seances.where((s) => s.matiereId == matiereId)) {
+        NotificationService.cancel(s.id.hashCode);
+      }
+    }
     _sauvegarder();
     notifyListeners();
   }
@@ -73,12 +58,55 @@ class AppState extends ChangeNotifier {
 
   // --- Seances ---
   void ajouterSeance(String matiereId, DateTime debut, DateTime fin, String? notes) {
-    seances.add(Seance(id: _uuid.v4(), matiereId: matiereId, dateDebut: debut, dateFin: fin, notes: notes));
+    final id = _uuid.v4();
+    final seance = Seance(id: id, matiereId: matiereId, dateDebut: debut, dateFin: fin, notes: notes);
+    seances.add(seance);
+    _planifierNotification(id, matiereId, debut, notes);
     _sauvegarder();
     notifyListeners();
   }
 
+  void modifierSeance(String id, String matiereId, DateTime debut, DateTime fin, String? notes) {
+    final index = seances.indexWhere((s) => s.id == id);
+    if (index == -1) return;
+
+    // Annuler l'ancienne notification
+    NotificationService.cancel(id.hashCode);
+
+    // Mettre à jour la séance
+    seances[index] = Seance(
+      id: id,
+      matiereId: matiereId,
+      dateDebut: debut,
+      dateFin: fin,
+      notes: notes,
+      terminee: seances[index].terminee,
+    );
+
+    // Replanifier la notification avec les nouvelles infos
+    _planifierNotification(id, matiereId, debut, notes);
+
+    _sauvegarder();
+    notifyListeners();
+  }
+
+  void _planifierNotification(String seanceId, String matiereId, DateTime debut, String? notes) {
+    final matiere = matiereById(matiereId);
+    if (matiere != null && matiere.notificationActive) {
+      final rappel = debut.subtract(Duration(minutes: matiere.rappelMinutes));
+      if (rappel.isAfter(DateTime.now())) {
+        NotificationService.scheduleNotification(
+          id: seanceId.hashCode,
+          title: "Cours : ${matiere.nom}",
+          body: notes ?? "Ta séance commence bientôt",
+          dateTime: rappel,
+        );
+      }
+    }
+  }
+
   void supprimerSeance(String id) {
+    NotificationService.cancel(id.hashCode);
     seances.removeWhere((s) => s.id == id);
     _sauvegarder();
     notifyListeners();
@@ -111,7 +139,6 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  /// Heures totales cette semaine par matiere
   Map<String, double> heuresParMatiereHebdo() {
     final now = DateTime.now();
     final debutSemaine = now.subtract(Duration(days: now.weekday - 1));
@@ -130,7 +157,6 @@ class AppState extends ChangeNotifier {
     return heuresParMatiereHebdo().values.fold(0, (a, b) => a + b);
   }
 
-  /// Heures par jour cette semaine (index 0=lundi)
   List<double> heuresParJourHebdo() {
     final now = DateTime.now();
     final debutSemaine = now.subtract(Duration(days: now.weekday - 1));

@@ -1,18 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:planning_rev/pages/reglages.dart';
 import 'package:planning_rev/pages/agenda.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
-import 'package:agenda_revision/state.dart';
-import 'package:agenda_revision/theme.dart';
-import 'package:agenda_revision/screens/agenda.dart';
-import 'package:agenda_revision/screens/rappels.dart';
-import 'package:agenda_revision/screens/stats.dart';
-import 'package:agenda_revision/screens/reglages.dart';
+import 'agenda_revision/state.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'pages/rappel.dart';
+import 'pages/statistiques.dart';
+import 'agenda_revision/theme.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'services/notificationService.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('fr_FR', null);
+  await NotificationService.init();
+  await Permission.notification.request();
+  await Permission.scheduleExactAlarm.request();
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarBrightness: Brightness.light,
@@ -35,7 +40,15 @@ class AgendaRevisionApp extends StatelessWidget {
       theme: appTheme,
       debugShowCheckedModeBanner: false,
       locale: const Locale('fr', 'FR'),
-      supportedLocales: const [Locale('fr', 'FR'), Locale('en', 'US')],
+      supportedLocales: const [
+        Locale('fr', 'FR'),
+        Locale('en', 'US'),
+      ],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       home: const MainNavigation(),
     );
   }
@@ -51,11 +64,11 @@ class MainNavigation extends StatefulWidget {
 class _MainNavigationState extends State<MainNavigation> {
   int _index = 0;
 
-  static const _screens = [
-    AgendaScreen(),
+  final _screens = [
+    AgendaPage(title: 'Agenda'),
     RappelsScreen(),
     StatsScreen(),
-    ReglagésScreen(),
+    ReglagesScreen(),
   ];
 
   @override

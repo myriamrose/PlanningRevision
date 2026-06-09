@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:agenda_revision/state.dart';
-import 'package:agenda_revision/theme.dart';
-import 'package:agenda_revision/models.dart';
+import '../agenda_revision/state.dart';
+import '../agenda_revision/theme.dart';
+import '../models/Models.dart';
 
-class ReglagésScreen extends StatelessWidget {
-const ReglagésScreen({super.key});
+class ReglagesScreen extends StatelessWidget {
+const ReglagesScreen({super.key});
 
 @override
 Widget build(BuildContext context) {

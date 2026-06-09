@@ -5,25 +5,45 @@ import '../agenda_revision/theme.dart';
 import '../models/Models.dart';
 import '../agenda_revision/state.dart';
 
-class AjouterSeanceScreen extends StatefulWidget {
-  final DateTime jourInitial;
-  const AjouterSeanceScreen({super.key, required this.jourInitial});
+class ModifierSeanceScreen extends StatefulWidget {
+  final Seance seance;
+  const ModifierSeanceScreen({super.key, required this.seance});
 
   @override
-  State<AjouterSeanceScreen> createState() => _AjouterSeanceScreenState();
+  State<ModifierSeanceScreen> createState() => _ModifierSeanceScreenState();
 }
 
-class _AjouterSeanceScreenState extends State<AjouterSeanceScreen> {
+class _ModifierSeanceScreenState extends State<ModifierSeanceScreen> {
   Matiere? _matiereSelectionnee;
   late DateTime _dateSelectionnee;
-  TimeOfDay _heureDebut = const TimeOfDay(hour: 14, minute: 0);
-  TimeOfDay _heureFin = const TimeOfDay(hour: 16, minute: 0);
-  final _notesController = TextEditingController();
+  late TimeOfDay _heureDebut;
+  late TimeOfDay _heureFin;
+  late TextEditingController _notesController;
 
   @override
   void initState() {
     super.initState();
-    _dateSelectionnee = widget.jourInitial;
+    final s = widget.seance;
+    _dateSelectionnee = DateTime(s.dateDebut.year, s.dateDebut.month, s.dateDebut.day);
+    _heureDebut = TimeOfDay(hour: s.dateDebut.hour, minute: s.dateDebut.minute);
+    _heureFin = TimeOfDay(hour: s.dateFin.hour, minute: s.dateFin.minute);
+    _notesController = TextEditingController(text: s.notes ?? '');
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Résoudre la matière ici pour avoir accès au context/state
+    if (_matiereSelectionnee == null) {
+      final state = context.read<AppState>();
+      _matiereSelectionnee = state.matiereById(widget.seance.matiereId);
+    }
+  }
+
+  @override
+  void dispose() {
+    _notesController.dispose();
+    super.dispose();
   }
 
   @override
@@ -33,7 +53,7 @@ class _AjouterSeanceScreenState extends State<AjouterSeanceScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F7),
       appBar: AppBar(
-        title: const Text('Nouvelle séance'),
+        title: const Text('Modifier la séance'),
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: () => Navigator.pop(context),
@@ -152,7 +172,7 @@ class _AjouterSeanceScreenState extends State<AjouterSeanceScreen> {
           const SizedBox(height: 24),
           ElevatedButton(
             onPressed: _matiereSelectionnee == null ? null : _valider,
-            child: const Text('Ajouter la séance'),
+            child: const Text('Enregistrer les modifications'),
           ),
         ],
       ),
@@ -185,13 +205,18 @@ class _AjouterSeanceScreenState extends State<AjouterSeanceScreen> {
       );
       return;
     }
-    context.read<AppState>().ajouterSeance(
-      _matiereSelectionnee!.id, debut, fin,
+    context.read<AppState>().modifierSeance(
+      widget.seance.id,
+      _matiereSelectionnee!.id,
+      debut,
+      fin,
       _notesController.text.isNotEmpty ? _notesController.text : null,
     );
     Navigator.pop(context);
   }
 }
+
+// ── Widgets locaux (identiques à AjouterSeanceScreen) ──────────────────────
 
 class _Section extends StatelessWidget {
   final String titre;
@@ -210,7 +235,12 @@ class _Section extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(titre, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF8E8E93), letterSpacing: 0.5)),
+          Text(titre,
+              style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF8E8E93),
+                  letterSpacing: 0.5)),
           const SizedBox(height: 10),
           child,
         ],
@@ -224,7 +254,8 @@ class _PickerHeure extends StatelessWidget {
   final TimeOfDay heure;
   final ValueChanged<TimeOfDay> onChanged;
 
-  const _PickerHeure({required this.label, required this.heure, required this.onChanged});
+  const _PickerHeure(
+      {required this.label, required this.heure, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -250,11 +281,16 @@ class _PickerHeure extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF8E8E93))),
+            Text(label,
+                style:
+                const TextStyle(fontSize: 10, color: Color(0xFF8E8E93))),
             const SizedBox(height: 2),
             Text(
               '${heure.hour.toString().padLeft(2, '0')}:${heure.minute.toString().padLeft(2, '0')}',
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: Color(0xFF1C1C1E)),
+              style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF1C1C1E)),
             ),
           ],
         ),
